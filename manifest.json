@@ -1,6 +1,6 @@
 {
-  "name": "回転率逆算ツール",
-  "short_name": "回転率逆算",
+  "name": "ハネモノ計算ツール",
+  "short_name": "ハネモノ計算",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -8,7 +8,17 @@
   "background_color": "#14120f",
   "theme_color": "#14120f",
   "icons": [
-    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ]
 }
