@@ -98,6 +98,15 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
 .bar{height:9px;border-radius:5px;background:var(--bg-soft);overflow:hidden}
 .bar i{display:block;height:100%;border-radius:5px;background:var(--amber)}
 
+.saved-item{border-bottom:1px solid var(--border);padding:12px 2px;display:flex;gap:10px;align-items:flex-start}
+.saved-item:last-child{border-bottom:none}
+.saved-main{flex:1;min-width:0}
+.saved-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.saved-no{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--amber)}
+.saved-date{font-size:11px;color:var(--text-muted)}
+.saved-rate{font-family:var(--mono);font-size:15px;font-weight:700}
+.saved-sub{font-size:12px;color:var(--text-sub);font-family:var(--mono);margin-top:2px}
+.saved-memo{font-size:12px;color:var(--text-muted);margin-top:2px;word-break:break-all}
 .verdict{text-align:center;font-size:15px;font-weight:700;padding:12px;border-radius:10px;margin-top:12px;background:var(--bg-soft)}
 .border-box{background:var(--bg-soft);border-radius:10px;padding:12px;text-align:center;margin-top:12px}
 .border-box .lbl{font-size:12px;color:var(--text-sub)}
@@ -181,7 +190,9 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
       </div>
     </div>
     <select id="in-r" style="display:none"></select>
-    <div class="hint" style="margin:-6px 0 10px" id="auto-r-hint">出玉からR数を自動で判定します</div>
+    <label style="margin-bottom:6px">R数（自動判定・タップで変更）</label>
+    <div class="seg sub-seg" id="r-seg" style="margin-bottom:6px"></div>
+    <div class="hint" style="margin:0 0 10px" id="auto-r-hint">出玉からR数を自動で判定します</div>
     <div id="add-warn" style="display:none;font-size:13px;color:var(--red);background:var(--bg-input);border:1px solid var(--red);border-radius:10px;padding:10px;margin-bottom:10px"></div>
     <button class="btn btn-add" id="btn-add">＋ 追加</button>
     <button class="btn btn-undo" id="btn-undo" style="display:none">↩ 削除を元に戻す</button>
@@ -215,6 +226,40 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   <div class="card">
     <div class="card-title">R振り分け（実測）</div>
     <div id="dist"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">台の記録</div>
+    <div class="row field">
+      <div style="flex:0 0 120px">
+        <label for="save-no">台番号</label>
+        <input type="number" id="save-no" inputmode="numeric" placeholder="1108" min="0">
+      </div>
+      <div>
+        <label for="save-memo">メモ（任意）</label>
+        <input type="text" id="save-memo" placeholder="釘・ヘソなど" style="font-size:15px;text-align:left;font-family:inherit">
+      </div>
+    </div>
+    <div class="row field">
+      <div>
+        <label for="save-rot">総回転</label>
+        <input type="number" id="save-rot" inputmode="numeric" placeholder="0" min="0">
+      </div>
+      <div>
+        <label for="save-hits">当たり回数</label>
+        <input type="number" id="save-hits" inputmode="numeric" placeholder="0" min="0">
+      </div>
+      <div>
+        <label for="save-rate">回転率</label>
+        <input type="number" id="save-rate" inputmode="decimal" placeholder="0.00" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="hint" style="margin:-6px 0 10px">上の計算結果が自動で入ります。手入力した台もそのまま保存できます</div>
+    <button class="btn btn-link" id="btn-fill-current" style="margin-bottom:10px">↻ 今の計算結果を入れる</button>
+    <button class="btn btn-add" id="btn-save-machine">💾 この台を保存</button>
+    <div id="save-msg" style="display:none;font-size:13px;color:var(--teal);text-align:center;margin-top:10px"></div>
+    <button type="button" id="saved-toggle" style="width:100%;background:none;border:none;border-top:1px solid var(--border);color:var(--text-sub);font-size:13px;padding:10px 0;margin-top:12px;cursor:pointer">保存した台 ↓（0件）</button>
+    <div id="saved-list" style="display:none"></div>
   </div>
 </div>
 
@@ -365,14 +410,14 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   function fmt(n){ return n.toLocaleString(); }
   function yen(n){ return (n >= 0 ? '+' : '−') + fmt(Math.round(Math.abs(n))) + '円'; }
 
-  var state = { tab:'calc', mode:'hist', pay:'hyoki', sign:1, hist:[], lastDeleted:null, histOpen:true };
+  var state = { tab:'calc', mode:'hist', pay:'hyoki', sign:1, hist:[], lastDeleted:null, histOpen:true, savedOpen:false, savedDeleted:null };
 
   // ---------- 保存 / 復元 ----------
   function save(){
     try{
       localStorage.setItem(KEYF(), JSON.stringify({
         tab:state.tab, mode:state.mode, pay:state.pay, sign:state.sign, hist:state.hist,
-        histOpen:state.histOpen,
+        histOpen:state.histOpen, savedOpen:state.savedOpen,
         pickup:$('pickup').value, kk:$('kk').value, cond:$('cond').value,
         totalRot:$('total-rot').value, diff:$('diff').value,
         perR:$('per-r').value, c2:$('cnt2').value, c4:$('cnt4').value, c9:$('cnt9').value,
@@ -393,6 +438,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
       state.pay  = s.pay === 'minus' ? 'minus' : 'hyoki';
       state.sign = s.sign === -1 ? -1 : 1;
       state.histOpen = s.histOpen !== false;
+      state.savedOpen = s.savedOpen === true;
       state.hist = Array.isArray(s.hist) ? s.hist.filter(function(h){
         return h && [2,4,9].indexOf(Number(h.r)) !== -1 && isFinite(Number(h.balls));
       }).map(function(h){ return { r:Number(h.r), balls:Math.abs(Number(h.balls)) }; }) : [];
@@ -462,6 +508,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     // 既定値
     $('pickup').value = m.pickup;
     $('per-r').value = m.perR;
+    renderRSeg();
   }
 
   function resetInputs(){
@@ -470,6 +517,8 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     $('ev-hours').value = '6';
     state.hist = []; state.lastDeleted = null; state.sign = 1;
     state.mode = 'hist'; state.pay = 'hyoki'; state.histOpen = true;
+    state.savedDeleted = null;
+    ['save-no','save-memo','save-rot','save-hits','save-rate'].forEach(function(id){ $(id).value = ''; });
     $('btn-undo').style.display = 'none';
   }
 
@@ -482,7 +531,164 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     applyMachine();
     load();                       // 切り替え先の保存データを復元
     renderMachineTabs();
-    renderTab(); renderMode(); renderPay(); renderSign(); renderHist(); calcAll();
+    renderTab(); renderMode(); renderPay(); renderSign(); renderHist(); calcAll(); renderSaved();
+  }
+
+  // ---------- 台の記録 ----------
+  function savedKey(){ return 'pachi_calc_saved_' + machineId; }
+
+  function loadSaved(){
+    try{
+      var raw = localStorage.getItem(savedKey());
+      if(!raw) return [];
+      var a = JSON.parse(raw);
+      return Array.isArray(a) ? a : [];
+    }catch(e){ return []; }
+  }
+  function storeSaved(list){
+    try{ localStorage.setItem(savedKey(), JSON.stringify(list)); }catch(e){}
+  }
+
+  // 計算結果を保存フォームに流し込む
+  function fillSaveForm(){
+    var t = totals();
+    var totalRot = iv($('total-rot'));
+    if(totalRot > 0) $('save-rot').value = totalRot;
+    if(t.count > 0)  $('save-hits').value = t.count;
+    if(lastRate !== null) $('save-rate').value = lastRate.toFixed(2);
+  }
+
+  function renderSaved(){
+    var list = loadSaved();
+    var box = $('saved-list');
+    var open = state.savedOpen === true;
+    box.style.display = open ? 'block' : 'none';
+    $('saved-toggle').textContent = (open ? '保存した台 ↑（' : '保存した台 ↓（') + list.length + '件）';
+    box.innerHTML = '';
+    if(list.length === 0){
+      box.innerHTML = '<div class="empty">保存した台はありません</div>';
+      appendSavedUndo(box);
+      return;
+    }
+    list.forEach(function(s, i){
+      var row = document.createElement('div');
+      row.className = 'saved-item';
+
+      var main = document.createElement('div');
+      main.className = 'saved-main';
+
+      var head = document.createElement('div');
+      head.className = 'saved-head';
+      var no = document.createElement('span');
+      no.className = 'saved-no';
+      no.textContent = s.no ? s.no + '番' : '台番号なし';
+      var rate = document.createElement('span');
+      rate.className = 'saved-rate';
+      if(s.rate){
+        rate.textContent = s.rate.toFixed(2);
+        rate.style.color = (s.border && s.rate >= s.border) ? 'var(--green)' : 'var(--red)';
+      }else{
+        rate.textContent = '---';
+        rate.style.color = 'var(--text-muted)';
+      }
+      var unit = document.createElement('span');
+      unit.className = 'saved-date';
+      unit.textContent = '鳴き/k';
+      var date = document.createElement('span');
+      date.className = 'saved-date';
+      date.textContent = s.date || '';
+      head.appendChild(no); head.appendChild(rate); head.appendChild(unit); head.appendChild(date);
+
+      var sub = document.createElement('div');
+      sub.className = 'saved-sub';
+      var parts = [];
+      if(s.rot)  parts.push(fmt(s.rot) + '回転');
+      if(s.hits) parts.push(s.hits + '当たり');
+      if(s.rot && s.hits) parts.push('1/' + (s.rot / s.hits).toFixed(1));
+      if(s.border) parts.push('ボーダー' + s.border.toFixed(2));
+      sub.textContent = parts.join(' / ');
+
+      main.appendChild(head);
+      if(parts.length) main.appendChild(sub);
+      if(s.memo){
+        var memo = document.createElement('div');
+        memo.className = 'saved-memo';
+        memo.textContent = s.memo;
+        main.appendChild(memo);
+      }
+
+      var del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.addEventListener('click', function(){
+        var cur = loadSaved();
+        state.savedDeleted = { item: cur[i], index: i };
+        cur.splice(i, 1);
+        storeSaved(cur);
+        renderSaved();
+      });
+
+      row.appendChild(main); row.appendChild(del);
+      box.appendChild(row);
+    });
+
+    appendSavedUndo(box);
+  }
+
+  function appendSavedUndo(box){
+    if(state.savedDeleted){
+      var undo = document.createElement('button');
+      undo.className = 'btn btn-undo';
+      undo.textContent = '↩ 削除した台を元に戻す';
+      undo.addEventListener('click', function(){
+        var cur = loadSaved();
+        cur.splice(Math.min(state.savedDeleted.index, cur.length), 0, state.savedDeleted.item);
+        state.savedDeleted = null;
+        storeSaved(cur);
+        renderSaved();
+      });
+      box.appendChild(undo);
+    }
+  }
+
+  function saveMachineRecord(){
+    var no    = $('save-no').value.trim();
+    var memo  = $('save-memo').value.trim();
+    var rot   = iv($('save-rot'));
+    var hits  = iv($('save-hits'));
+    var rate  = fv($('save-rate'));
+    if(!no && !rot && !hits && !rate){
+      showSaveMsg('台番号か数値を入力してください', true);
+      return;
+    }
+    var d = new Date();
+    var rec = {
+      no: no,
+      memo: memo,
+      rot: rot || null,
+      hits: hits || null,
+      rate: rate || null,
+      border: nakiBorder(),
+      date: (d.getMonth()+1) + '/' + d.getDate()
+    };
+    var list = loadSaved();
+    list.unshift(rec);           // 新しい台を上に
+    storeSaved(list);
+    state.savedOpen = true;
+    ['save-no','save-memo','save-rot','save-hits','save-rate'].forEach(function(id){ $(id).value = ''; });
+    renderSaved();
+    showSaveMsg('保存しました', false);
+    save();
+  }
+
+  var saveMsgTimer = null;
+  function showSaveMsg(text, isErr){
+    var el = $('save-msg');
+    el.textContent = text;
+    el.style.color = isErr ? 'var(--red)' : 'var(--teal)';
+    el.style.display = 'block';
+    if(saveMsgTimer) clearTimeout(saveMsgTimer);
+    saveMsgTimer = setTimeout(function(){ el.style.display = 'none'; }, 2500);
   }
 
   // ---------- 表示切替 ----------
@@ -511,6 +717,12 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     b.classList.toggle('minus', state.sign === -1);
   }
   $('machine-select').addEventListener('change', function(){ switchMachine(this.value); });
+  $('btn-save-machine').addEventListener('click', saveMachineRecord);
+  $('btn-fill-current').addEventListener('click', function(){ fillSaveForm(); });
+  $('saved-toggle').addEventListener('click', function(){
+    state.savedOpen = !state.savedOpen;
+    renderSaved(); save();
+  });
   $('tab-calc').addEventListener('click', function(){ state.tab='calc'; renderTab(); save(); });
   $('tab-ev').addEventListener('click', function(){ state.tab='ev'; renderTab(); save(); });
   $('mode-hist').addEventListener('click', function(){ state.mode='hist'; renderMode(); calcAll(); save(); });
@@ -609,6 +821,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     $('in-balls').value = '';
     rManual = false;
     clearAddWarn();
+    renderRSegActive();
     renderAutoRHint();
     renderHist(); calcAll(); save();
   });
@@ -785,6 +998,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
       var g = guessR(b);
       if(g) $('in-r').value = String(g);
     }
+    renderRSegActive();
     renderAutoRHint();
     save();
   });
@@ -793,9 +1007,10 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   function renderAutoRHint(){
     var b = iv($('in-balls'));
     var hint = $('auto-r-hint');
-    if(b > 0){
-      var r = parseInt($('in-r').value, 10);
-      hint.textContent = fmt(b) + '玉 → ' + r + 'R と判定（1R ' + Math.round(b / r) + '玉）';
+    var r = parseInt($('in-r').value, 10);
+    if(b > 0 && r > 0){
+      hint.textContent = fmt(b) + '玉 ÷ ' + r + 'R ＝ 1Rあたり ' + Math.round(b / r) + '玉'
+        + (rManual ? '（手動）' : '（自動判定）');
     }else{
       hint.textContent = '出玉からR数を自動で判定します';
     }
@@ -804,13 +1019,41 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   function renderHitCount(){
     $('hit-count-val').textContent = state.hist.length;
   }
+
+  // R数の選択ボタンを作る（機種のR数に合わせる）
+  function renderRSeg(){
+    var bar = $('r-seg');
+    bar.innerHTML = '';
+    M().rOptions.forEach(function(r){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = r + 'R';
+      b.dataset.r = String(r);
+      b.addEventListener('click', function(){
+        $('in-r').value = String(r);
+        rManual = true;           // 手動で選んだら自動判定より優先
+        clearAddWarn();
+        renderRSegActive();
+        renderAutoRHint();
+        save();
+      });
+      bar.appendChild(b);
+    });
+    renderRSegActive();
+  }
+  function renderRSegActive(){
+    var cur = $('in-r').value;
+    [].forEach.call($('r-seg').children, function(b){
+      b.className = (b.dataset.r === cur) ? 'on' : '';
+    });
+  }
   $('in-r').addEventListener('change', function(){ rManual = true; clearAddWarn(); save(); });
   $('in-balls').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('btn-add').click(); });
 
   $('btn-reset').addEventListener('click', function(){
     resetInputs();
     applyMachine();
-    renderPay(); renderSign(); renderHist(); calcAll(); save();
+    renderPay(); renderSign(); renderHist(); calcAll(); renderSaved(); renderAutoRHint(); save();
   });
 
   // ---------- 復帰時に入力を失わない ----------
@@ -819,7 +1062,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
       var sm = localStorage.getItem(MACHINE_KEY);
       if(sm && MACHINES[sm] && sm !== machineId){ machineId = sm; applyMachine(); renderMachineTabs(); }
     }catch(e){}
-    load(); renderTab(); renderMode(); renderPay(); renderSign(); renderHist(); calcAll();
+    load(); renderTab(); renderMode(); renderPay(); renderSign(); renderHist(); calcAll(); renderSaved();
   }
   document.addEventListener('visibilitychange', function(){
     if(document.visibilityState === 'hidden') save(); else refresh();
@@ -837,7 +1080,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   renderMachineTabs();
   load();
   renderTab(); renderMode(); renderPay(); renderSign(); renderHist(); calcAll();
-  renderAutoRHint();
+  renderAutoRHint(); renderSaved();
 
   window.addEventListener('load', function(){
     try{
