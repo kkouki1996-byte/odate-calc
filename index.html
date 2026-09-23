@@ -38,8 +38,13 @@ h1{font-size:18px;margin:0 0 2px;text-align:center;color:var(--amber)}
 .seg button.on{background:var(--amber);border-color:var(--amber);color:#2a1a08}
 .seg.sub-seg button{padding:10px 4px;font-size:13px}
 .seg.sub-seg button.on{background:var(--teal);border-color:var(--teal);color:#06201a}
-#machine-seg button{padding:10px 4px;font-size:13px;border-style:dashed}
-#machine-seg button.on{background:var(--bg-soft);border-color:var(--amber);border-style:solid;color:var(--amber)}
+.machine-select{
+  font-size:17px;font-weight:700;color:var(--amber);
+  background:var(--bg-soft);border:1px solid var(--amber);border-radius:12px;
+  padding:14px 40px 14px 16px;text-align:left;width:100%;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff9f43' stroke-width='2.5' stroke-linecap='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:20px;
+}
 
 label{display:block;font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px}
 input[type=number],select{width:100%;padding:14px;border-radius:10px;border:1px solid var(--border);
@@ -107,7 +112,9 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   <div class="sub" id="machine-sub">Pポチッと一発おだてブタ2 / 1k = 250玉</div>
 
   <!-- 機種切替 -->
-  <div class="seg" id="machine-seg" style="margin-bottom:10px"></div>
+  <div style="margin-bottom:14px">
+    <select id="machine-select" class="machine-select"></select>
+  </div>
 
   <!-- 画面切替 -->
   <div class="seg">
@@ -161,16 +168,20 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   <div class="card" id="panel-hist">
     <div class="card-title">大当たり履歴（実測出玉）</div>
     <div class="row field">
-      <div style="flex:0 0 100px">
-        <label for="in-r">R数</label>
-        <select id="in-r"></select>
+      <div style="flex:0 0 108px">
+        <label>当たり回数</label>
+        <div id="hit-count-box" style="background:var(--bg-input);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+          <span style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)" id="hit-count-val">0</span>
+          <span style="font-size:13px;color:var(--text-sub)">回</span>
+        </div>
       </div>
       <div>
         <label for="in-balls">獲得出玉</label>
         <input type="number" id="in-balls" inputmode="numeric" placeholder="1053" min="0">
       </div>
     </div>
-    <div class="hint" style="margin:-6px 0 10px">出玉を入れるとR数を自動で選びます（手動で変更も可）</div>
+    <select id="in-r" style="display:none"></select>
+    <div class="hint" style="margin:-6px 0 10px" id="auto-r-hint">出玉からR数を自動で判定します</div>
     <div id="add-warn" style="display:none;font-size:13px;color:var(--red);background:var(--bg-input);border:1px solid var(--red);border-radius:10px;padding:10px;margin-bottom:10px"></div>
     <button class="btn btn-add" id="btn-add">＋ 追加</button>
     <button class="btn btn-undo" id="btn-undo" style="display:none">↩ 削除を元に戻す</button>
@@ -403,15 +414,14 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
 
   // ---------- 機種の切り替え ----------
   function renderMachineTabs(){
-    var bar = $('machine-seg');
-    bar.innerHTML = '';
+    var sel = $('machine-select');
+    sel.innerHTML = '';
     Object.keys(MACHINES).forEach(function(id){
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = MACHINES[id].name;
-      if(id === machineId) b.className = 'on';
-      b.addEventListener('click', function(){ switchMachine(id); });
-      bar.appendChild(b);
+      var o = document.createElement('option');
+      o.value = id;
+      o.textContent = MACHINES[id].name;
+      if(id === machineId) o.selected = true;
+      sel.appendChild(o);
     });
   }
 
@@ -500,6 +510,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     b.textContent = state.sign === 1 ? '＋' : '−';
     b.classList.toggle('minus', state.sign === -1);
   }
+  $('machine-select').addEventListener('change', function(){ switchMachine(this.value); });
   $('tab-calc').addEventListener('click', function(){ state.tab='calc'; renderTab(); save(); });
   $('tab-ev').addEventListener('click', function(){ state.tab='ev'; renderTab(); save(); });
   $('mode-hist').addEventListener('click', function(){ state.mode='hist'; renderMode(); calcAll(); save(); });
@@ -527,6 +538,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     if(state.hist.length === 0){
       box.innerHTML = '<div class="empty">履歴なし</div>';
       renderHistOpen();
+      renderHitCount();
       return;
     }
     state.hist.forEach(function(h, i){
@@ -555,6 +567,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
       box.appendChild(row);
     });
     renderHistOpen();
+    renderHitCount();
   }
   // 出玉から最も近いR数を推定（2R=234 / 4R=468 / 9R=1053 玉が基準）
   function guessR(balls){
@@ -596,6 +609,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
     $('in-balls').value = '';
     rManual = false;
     clearAddWarn();
+    renderAutoRHint();
     renderHist(); calcAll(); save();
   });
   function renderHistOpen(){
@@ -771,8 +785,25 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
       var g = guessR(b);
       if(g) $('in-r').value = String(g);
     }
+    renderAutoRHint();
     save();
   });
+
+  // 入力中の出玉が何Rと判定されたかを表示
+  function renderAutoRHint(){
+    var b = iv($('in-balls'));
+    var hint = $('auto-r-hint');
+    if(b > 0){
+      var r = parseInt($('in-r').value, 10);
+      hint.textContent = fmt(b) + '玉 → ' + r + 'R と判定（1R ' + Math.round(b / r) + '玉）';
+    }else{
+      hint.textContent = '出玉からR数を自動で判定します';
+    }
+  }
+
+  function renderHitCount(){
+    $('hit-count-val').textContent = state.hist.length;
+  }
   $('in-r').addEventListener('change', function(){ rManual = true; clearAddWarn(); save(); });
   $('in-balls').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('btn-add').click(); });
 
@@ -806,6 +837,7 @@ input:focus,select:focus{outline:none;border-color:var(--amber)}
   renderMachineTabs();
   load();
   renderTab(); renderMode(); renderPay(); renderSign(); renderHist(); calcAll();
+  renderAutoRHint();
 
   window.addEventListener('load', function(){
     try{
