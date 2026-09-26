@@ -1,5 +1,5 @@
 // Service Worker - ネットワーク優先 / オフライン時はキャッシュ
-const CACHE_NAME = 'odate-calc-v4';
+const CACHE_NAME = 'odate-calc-v5';
 const CACHE_FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
